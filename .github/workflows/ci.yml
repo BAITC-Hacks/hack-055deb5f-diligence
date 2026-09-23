@@ -1,10 +1,10 @@
-name: CI
+name: CI (manual)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Automatic runs are temporarily disabled because GitHub Actions is locked
+  # for the BAITC-Hacks organization at the billing level. Re-enable push and
+  # pull_request triggers when the organization owner restores Actions access.
+  workflow_dispatch:
 
 permissions:
   contents: read

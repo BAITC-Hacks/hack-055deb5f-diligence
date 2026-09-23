@@ -5,7 +5,6 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.57-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-Responses_API-412991?logo=openai&logoColor=white)](https://developers.openai.com/api/docs/)
-[![CI](https://github.com/BAITC-Hacks/hack-055deb5f-diligence/actions/workflows/ci.yml/badge.svg)](https://github.com/BAITC-Hacks/hack-055deb5f-diligence/actions/workflows/ci.yml)
 
 Bridge — хакатонный MVP-проект, который помогает компаниям превращать размытые
 бизнес-проблемы в понятные практические задачи, а студентам — быстро разбираться
@@ -105,7 +104,7 @@ flowchart LR
 | Pydantic 2.13 | проверка Structured Outputs от AI |
 | python-dotenv 1.2 | локальная загрузка настроек и API-ключа |
 | JSON | локальное хранение задач, команд и предложений |
-| GitHub Actions | автоматический запуск тестов |
+| unittest + Streamlit AppTest | автоматические проверки логики и интерфейса |
 
 ## Архитектура
 
@@ -211,8 +210,9 @@ python -m unittest discover -s tests -v
 python -m compileall -q app.py services utils
 ```
 
-GitHub Actions автоматически запускает эти проверки для каждого push и pull
-request в `main`.
+Workflow GitHub Actions сохранён для ручного запуска. Автоматический запуск
+временно отключён, потому что Actions заблокированы на уровне billing
+организации `BAITC-Hacks`; сами тесты выполняются локально командами выше.
 
 ### Сценарий, который может повторить жюри
 
