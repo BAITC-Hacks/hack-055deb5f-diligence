@@ -18,7 +18,7 @@
       "Manufacturing"
     ],
     "score": 100,
-    "level": "Приоритетная",
+    "level": "Полностью готова",
     "confirmed": true,
     "published": true,
     "status": "published",
@@ -46,7 +46,7 @@
       "Maps"
     ],
     "score": 100,
-    "level": "Приоритетная",
+    "level": "Полностью готова",
     "confirmed": true,
     "published": true,
     "status": "published",
@@ -74,7 +74,7 @@
       "Retail"
     ],
     "score": 90,
-    "level": "Приоритетная",
+    "level": "Полностью готова",
     "confirmed": true,
     "published": true,
     "status": "published",
@@ -101,7 +101,7 @@
       "Information Architecture"
     ],
     "score": 70,
-    "level": "Готовая",
+    "level": "Хорошо подготовлена",
     "confirmed": true,
     "published": true,
     "status": "published",
@@ -128,7 +128,7 @@
       "Data Analysis"
     ],
     "score": 55,
-    "level": "Рабочая",
+    "level": "Можно брать в работу",
     "confirmed": true,
     "published": true,
     "status": "published",

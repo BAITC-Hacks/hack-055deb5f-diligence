@@ -54,28 +54,64 @@ INDUSTRIES = [
     "Other",
 ]
 PROFILES = ["Новичок", "AI / Data", "Business", "Engineering", "Design / Product"]
-DEPTHS = ["Коротко", "Понятно", "Технически"]
+DEPTHS = ["За 30 секунд", "Понятно и подробно", "Технически"]
+DEPTH_API_VALUES = {
+    "За 30 секунд": "Коротко",
+    "Понятно и подробно": "Понятно",
+    "Технически": "Технически",
+}
 
 CARD_FIELDS = {
     "title": "Название задачи",
-    "context_and_need": "Контекст и потребность",
-    "users": "Пользователи",
+    "context_and_need": "Почему появилась эта задача",
+    "users": "Кто будет использовать результат",
+    "data_and_materials": "Данные и материалы",
+    "expected_result": "Что требуется от команды",
+    "success_criteria": "Как поймут, что решение подходит",
+    "constraints": "Ограничения",
+    "business_contact": "Связь с представителем бизнеса",
+}
+
+CARD_FIELD_HELP = {
+    "data_and_materials": (
+        "Например: таблицы, фотографии, примеры, API, инструкции или открытые источники."
+    ),
+    "success_criteria": "Как компания поймёт, что результат можно принять.",
+    "constraints": "Срок, технологии, доступы или другие условия.",
+}
+
+SCORE_FIELD_LABELS = {
+    "context_and_need": "Контекст и проблема",
     "data_and_materials": "Данные и материалы",
     "expected_result": "Ожидаемый результат",
     "success_criteria": "Критерии успеха",
     "constraints": "Ограничения",
-    "business_contact": "Контакт и формат взаимодействия",
-}
-
-SCORE_FIELD_LABELS = {
-    key: CARD_FIELDS[key] for key in WEIGHTS
+    "users": "Пользователи",
+    "business_contact": "Связь с представителем бизнеса",
 }
 
 LEVEL_ICONS = {
-    "Черновик": "⚪",
-    "Рабочая": "🟡",
-    "Готовая": "🟢",
-    "Приоритетная": "🚀",
+    "Нужно уточнить": "⚪",
+    "Можно брать в работу": "🟡",
+    "Хорошо подготовлена": "🟢",
+    "Полностью готова": "🚀",
+}
+
+LEVEL_DESCRIPTIONS = {
+    "Нужно уточнить": (
+        "В задаче пока не хватает важных деталей. Студентам придётся задавать "
+        "дополнительные вопросы."
+    ),
+    "Можно брать в работу": (
+        "Основная идея понятна, но некоторые детали ещё стоит добавить."
+    ),
+    "Хорошо подготовлена": (
+        "Студенты уже могут уверенно понять задачу и начать работу."
+    ),
+    "Полностью готова": (
+        "Есть вся ключевая информация, чтобы команда могла начать работу без "
+        "лишних уточнений."
+    ),
 }
 
 PROPOSAL_STATUS = {
@@ -115,12 +151,14 @@ def init_state() -> None:
         "selected_task_id": None,
         "selected_proposal_id": None,
         "selected_profile": "AI / Data",
-        "selected_explanation_depth": "Понятно",
+        "selected_explanation_depth": "Понятно и подробно",
         "openai_api_key": None,
         "student_explanation": None,
         "student_explanation_context": None,
         "last_ai_fallback": False,
         "last_ai_error": None,
+        "onboarding_seen": False,
+        "proposal_status_notice": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -208,19 +246,21 @@ def render_sidebar() -> None:
     """Общая навигация, переключатель роли и безопасный ввод API-ключа."""
 
     st.sidebar.markdown("## BRIDGE")
-    st.sidebar.caption("Из проблемы — в понятную задачу")
+    st.sidebar.caption("Бизнес-задачи ↔ студенческие команды")
 
     if "role_switch" not in st.session_state:
         st.session_state.role_switch = st.session_state.role
     chosen_role = st.sidebar.radio(
-        "Роль",
+        "Вы работаете как:",
         [BUSINESS, STUDENT],
         horizontal=True,
         key="role_switch",
+        format_func=lambda role: "👔 Компания" if role == BUSINESS else "🎓 Студент",
     )
     if chosen_role != st.session_state.role:
         st.session_state.role = chosen_role
         st.session_state.page = "Dashboard"
+        st.session_state.onboarding_seen = True
         st.session_state.selected_task_id = None
         st.session_state.selected_proposal_id = None
         st.rerun()
@@ -228,16 +268,16 @@ def render_sidebar() -> None:
     st.sidebar.markdown("---")
     if st.session_state.role == BUSINESS:
         nav_items = [
-            ("🏠 Dashboard", "Dashboard"),
+            ("🏠 Главная", "Dashboard"),
             ("➕ Создать задачу", "Создать задачу"),
-            ("🌐 Каталог", "Каталог"),
-            ("🤝 Отклики", "Отклики"),
+            ("🌐 Все задачи", "Каталог"),
+            ("🤝 Предложения команд", "Отклики"),
         ]
     else:
         nav_items = [
-            ("🏠 Dashboard", "Dashboard"),
-            ("🔎 Найти задачи", "Найти задачи"),
-            ("📤 Мои предложения", "Мои предложения"),
+            ("🏠 Главная", "Dashboard"),
+            ("🔎 Найти задачу", "Найти задачи"),
+            ("📤 Мои заявки", "Мои предложения"),
         ]
 
     for label, page in nav_items:
@@ -247,7 +287,17 @@ def render_sidebar() -> None:
             use_container_width=True,
             type="primary" if st.session_state.page == page else "secondary",
         ):
+            st.session_state.onboarding_seen = True
             go_to(page)
+
+    if st.sidebar.button(
+        "❓ Как это работает",
+        key="nav_how_bridge_works",
+        use_container_width=True,
+        type="primary" if st.session_state.page == "Как это работает" else "secondary",
+    ):
+        st.session_state.onboarding_seen = True
+        go_to("Как это работает")
 
     st.sidebar.markdown("---")
     api_key = get_api_key(st.session_state.openai_api_key)
@@ -266,7 +316,7 @@ def render_sidebar() -> None:
     if api_key and not st.session_state.last_ai_fallback:
         st.sidebar.caption("🟢 OpenAI подключён")
     else:
-        st.sidebar.caption("🟡 Demo mode")
+        st.sidebar.caption("🟡 Резервный режим")
 
 
 def render_ai_warning() -> None:
@@ -318,8 +368,118 @@ def render_page_intro(title: str, subtitle: str | None = None) -> None:
         st.markdown(f'<p class="bridge-muted">{subtitle}</p>', unsafe_allow_html=True)
 
 
+def choose_role(role: str, page: str) -> None:
+    """Завершить onboarding и открыть первое полезное действие выбранной роли."""
+
+    if role == BUSINESS and page == "Создать задачу":
+        reset_create_flow()
+    st.session_state.role = role
+    st.session_state.role_switch = role
+    st.session_state.onboarding_seen = True
+    st.session_state.page = page
+
+
+def render_how_bridge_works(*, welcome: bool = False) -> None:
+    """Коротко объяснить ценность и сквозной сценарий без обязательного тура."""
+
+    if welcome:
+        render_page_intro(
+            "Добро пожаловать в Bridge 👋",
+            "Bridge помогает компаниям понятно формулировать реальные задачи, "
+            "а студентам — быстро разобраться в них и предложить решение.",
+        )
+    else:
+        render_page_intro(
+            "Как работает Bridge",
+            "Выберите свою роль и начните с одного понятного действия.",
+        )
+
+    company, student = st.columns(2, gap="large")
+    with company:
+        with st.container(border=True):
+            st.subheader("👔 Я представляю компанию" if welcome else "Для компании")
+            if welcome:
+                st.write(
+                    "Опишите проблему своими словами. AI поможет уточнить детали и "
+                    "подготовить понятную задачу для студентов."
+                )
+                st.markdown(
+                    "1. Опишите проблему  \n"
+                    "2. Ответьте на несколько вопросов  \n"
+                    "3. Покажите задачу студентам  \n"
+                    "4. Получите предложения команд"
+                )
+            else:
+                st.write("У вас есть проблема, но нет готового технического задания?")
+                st.markdown(
+                    "1. Опишите проблему своими словами.  \n"
+                    "2. AI задаст вопросы о данных, результате и ограничениях.  \n"
+                    "3. Bridge покажет готовность задачи.  \n"
+                    "4. После публикации студенты увидят её.  \n"
+                    "5. Команды предложат решения.  \n"
+                    "6. Вы сами решите, с кем продолжить работу."
+                )
+            st.button(
+                "Создать задачу",
+                type="primary",
+                use_container_width=True,
+                key="onboarding_company",
+                on_click=choose_role,
+                args=(BUSINESS, "Создать задачу"),
+            )
+
+    with student:
+        with st.container(border=True):
+            st.subheader("🎓 Я студент" if welcome else "Для студентов")
+            if welcome:
+                st.write(
+                    "Найдите интересную реальную задачу, разберитесь в незнакомой "
+                    "теме с помощью AI и предложите своё решение."
+                )
+                st.markdown(
+                    "1. Выберите задачу  \n"
+                    "2. Разберитесь в её сути  \n"
+                    "3. Предложите решение  \n"
+                    "4. Дождитесь решения компании"
+                )
+            else:
+                st.write("Хотите работать над реальной задачей?")
+                st.markdown(
+                    "1. Найдите интересную задачу.  \n"
+                    "2. Посмотрите, насколько хорошо она подготовлена.  \n"
+                    "3. Если тема незнакома — попросите AI объяснить её.  \n"
+                    "4. Подготовьте идею и короткий план.  \n"
+                    "5. Отправьте предложение компании."
+                )
+            st.button(
+                "Найти задачу",
+                type="primary",
+                use_container_width=True,
+                key="onboarding_student",
+                on_click=choose_role,
+                args=(STUDENT, "Найти задачи"),
+            )
+
+    st.info(
+        "Важно: Bridge помогает структурировать и объяснять информацию, но "
+        "окончательное решение всегда принимают люди."
+    )
+
+
+def render_readiness_explanation() -> None:
+    """Показать единое человеческое объяснение формулы готовности."""
+
+    st.caption(
+        "Этот показатель показывает, насколько подробно бизнес описал задачу и "
+        "достаточно ли информации студентам для начала работы."
+    )
+    with st.expander("Как считается готовность?"):
+        for field, points in WEIGHTS.items():
+            st.write(f"{SCORE_FIELD_LABELS[field]} — до {points}")
+
+
 def render_task_card(task: dict[str, Any], count: int, key_prefix: str) -> None:
-    """Компактная карточка для каталогов и dashboard студента."""
+    """Компактная карточка для списков задач и главной студента."""
 
     score = int(task.get("score", calculate_score(task)))
     with st.container(border=True):
@@ -328,7 +488,7 @@ def render_task_card(task: dict[str, Any], count: int, key_prefix: str) -> None:
             st.subheader(str(task.get("title") or "Задача без названия"))
             st.caption(f"{task.get('industry', 'Other')} · {status_level(score)}")
         with rating:
-            st.metric("Готовность", f"{score}/100")
+            st.metric("Готовность задачи", f"{score}/100")
         st.write(truncate(task.get("context_and_need") or "Описание пока не указано."))
         if task.get("tags"):
             st.caption(f"Навыки: {tags_html(task.get('tags'))}")
@@ -341,38 +501,44 @@ def render_task_card(task: dict[str, Any], count: int, key_prefix: str) -> None:
             ):
                 go_to("Детали задачи", task_id=str(task.get("id")))
         with meta:
-            st.caption(f"{count} отклик(ов)")
+            st.caption(f"Предложений команд: {count}")
 
 
 def render_business_dashboard(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]]) -> None:
     render_page_intro(
-        "Добрый день 👋",
-        "Управляйте задачами и предложениями студенческих команд",
+        "Ваши задачи",
+        "Здесь вы видите опубликованные задачи и предложения студенческих команд.",
     )
     published = [task for task in tasks if task.get("published")]
     average = round(sum(int(t.get("score", calculate_score(t))) for t in tasks) / len(tasks)) if tasks else 0
     cols = st.columns(3)
-    cols[0].metric("Активные задачи", len(published))
-    cols[1].metric("Количество откликов", len(proposals))
-    cols[2].metric("Средняя готовность", f"{average}/100")
+    cols[0].metric("Мои задачи", len(tasks))
+    cols[1].metric("Предложения от команд", len(proposals))
+    cols[2].metric("Средняя готовность задач", f"{average}/100")
 
     st.write("")
-    if st.button("+ Создать новую задачу", type="primary", use_container_width=True):
+    create_label = "+ Создать новую задачу" if tasks else "Создать первую задачу"
+    if st.button(create_label, type="primary", use_container_width=True):
         reset_create_flow()
         go_to("Создать задачу")
 
     counts = proposal_counts(proposals)
     st.subheader("Мои задачи")
+    if not tasks:
+        st.info(
+            "У вас пока нет задач. Опишите первую проблему — Bridge поможет "
+            "превратить её в понятную задачу для студентов."
+        )
     for task in sorted(tasks, key=lambda item: str(item.get("created_at", "")), reverse=True)[:8]:
         score = int(task.get("score", calculate_score(task)))
         with st.container(border=True):
             main, rating, responses, action = st.columns([4, 1.2, 1.2, 1.2])
             with main:
                 st.markdown(f"**{task.get('title') or 'Без названия'}**")
-                state = "Опубликована" if task.get("published") else "Черновик"
+                state = "Показана студентам" if task.get("published") else "Не показана студентам"
                 st.caption(f"{task.get('industry', 'Other')} · {state}")
-            rating.metric("Рейтинг", f"{score}/100")
-            responses.metric("Отклики", counts.get(str(task.get("id")), 0))
+            rating.metric("Готовность", f"{score}/100")
+            responses.metric("Предложения", counts.get(str(task.get("id")), 0))
             with action:
                 st.caption(status_level(score))
                 if task.get("published") and st.button(
@@ -380,20 +546,25 @@ def render_business_dashboard(tasks: list[dict[str, Any]], proposals: list[dict[
                 ):
                     go_to("Детали задачи", task_id=str(task.get("id")))
 
-    st.subheader("Последние отклики")
+    st.subheader("Новые предложения от команд")
+    st.caption("Студенты отправили свои идеи решения ваших задач.")
     if not proposals:
-        st.info("Новых откликов пока нет.")
+        st.info(
+            "Пока никто не предложил решение. Когда студенческая команда "
+            "отправит идею по вашей задаче, предложение появится здесь."
+        )
         return
     for proposal in sorted(proposals, key=lambda item: str(item.get("created_at", "")), reverse=True)[:5]:
         task = task_by_id(tasks, str(proposal.get("task_id")))
         with st.container(border=True):
             text, state, action = st.columns([4, 1.4, 1])
             with text:
-                st.markdown(f"**{proposal.get('team_name', 'Команда')}** · {task.get('title') if task else 'Задача'}")
-                st.caption(truncate(proposal.get("idea"), 120))
+                st.markdown(f"**Команда:** {proposal.get('team_name', 'Без названия')}")
+                st.caption(f"По задаче: {task.get('title') if task else 'Задача недоступна'}")
+                st.write(f"**Идея:** {truncate(proposal.get('idea'), 120)}")
             state.caption(proposal_status(str(proposal.get("status", "pending"))))
             with action:
-                if st.button("Посмотреть", key=f"latest_proposal_{proposal.get('id')}"):
+                if st.button("Посмотреть предложение", key=f"latest_proposal_{proposal.get('id')}"):
                     go_to("Отклики", proposal_id=str(proposal.get("id")))
 
 
@@ -409,12 +580,16 @@ def render_student_dashboard(tasks: list[dict[str, Any]], proposals: list[dict[s
     )
     counts = proposal_counts(proposals)
     st.subheader("Новые задачи")
+    if not published:
+        st.info(
+            "Компании пока не показали новых задач. Загляните сюда немного позже."
+        )
     for task in published[:3]:
         render_task_card(task, counts.get(str(task.get("id")), 0), "student_dashboard")
     if st.button("Смотреть все задачи", type="primary", use_container_width=True):
         go_to("Найти задачи")
 
-    st.subheader("Мои предложения")
+    st.subheader("Мои заявки")
     render_student_proposals(tasks, proposals, compact=True)
 
 
@@ -438,12 +613,46 @@ def render_analysis(analysis: dict[str, Any]) -> None:
 
 
 def render_create_task() -> None:
+    draft = st.session_state.draft
+    analysis = st.session_state.analysis
+    current_card = st.session_state.current_card
+
+    if current_card:
+        st.caption("ШАГ 3 ИЗ 3")
+        render_page_intro(
+            "Проверьте готовую задачу",
+            "AI собрал ваши ответы в понятное описание задачи. Проверьте текст "
+            "и при необходимости исправьте его.",
+        )
+        render_editable_card()
+        return
+
+    if analysis:
+        st.caption("ШАГ 2 ИЗ 3")
+        render_page_intro(
+            "Уточним детали",
+            "Ваши ответы помогут студентам понять задачу и повысят её готовность.",
+        )
+        if st.session_state.last_ai_fallback:
+            render_ai_warning()
+        render_analysis(analysis)
+        render_clarifying_form(
+            str(draft.get("industry") or "Manufacturing"),
+            str(draft.get("raw_description") or ""),
+            analysis,
+        )
+        if st.button("Начать описание заново", key="restart_create_flow"):
+            reset_create_flow()
+            st.rerun()
+        return
+
+    st.caption("ШАГ 1 ИЗ 3")
     render_page_intro(
-        "Опишите проблему своими словами",
-        "Не нужно писать идеальное ТЗ. Расскажите, что происходит сейчас и что хотите изменить — Bridge поможет сформулировать остальное.",
+        "Расскажите, что хотите улучшить",
+        "Не нужно писать техническое задание. Опишите проблему обычными словами — "
+        "AI поможет задать правильные вопросы.",
     )
 
-    draft = st.session_state.draft
     if "draft_industry" not in st.session_state:
         st.session_state.draft_industry = (
             draft.get("industry") if draft.get("industry") in INDUSTRIES else "Manufacturing"
@@ -452,29 +661,30 @@ def render_create_task() -> None:
         st.session_state.draft_description = str(draft.get("raw_description", ""))
     with st.container(border=True):
         industry = st.selectbox(
-            "Отрасль",
+            "Отрасль компании",
             INDUSTRIES,
             key="draft_industry",
         )
         raw_description = st.text_area(
-            "Что вы хотите решить?",
+            "Какую проблему вы хотите решить?",
             height=180,
             placeholder=(
-                "Например: сотрудники вручную проверяют продукцию на брак. Хотим попробовать "
-                "автоматизировать это с помощью AI, но пока не понимаем, какую именно задачу дать студентам."
+                "Например: сотрудники вручную проверяют продукцию на брак. Хотим "
+                "автоматизировать проверку, но пока не знаем, какую конкретную "
+                "задачу дать студентам."
             ),
             key="draft_description",
         )
         left, right = st.columns([3, 2])
         with left:
             analyze_clicked = st.button(
-                "✨ Проанализировать с AI",
+                "✨ Помочь сформулировать задачу",
                 type="primary",
                 use_container_width=True,
             )
         with right:
             st.button(
-                "Подставить demo-текст",
+                "Подставить пример",
                 use_container_width=True,
                 on_click=load_demo_draft,
             )
@@ -487,7 +697,7 @@ def render_create_task() -> None:
         elif len(raw_description.strip()) < 20:
             st.error("Добавьте немного деталей: желательно не менее 20 символов.")
         else:
-            with st.spinner("Анализируем задачу..."):
+            with st.spinner("Готовим уточняющие вопросы..."):
                 analysis, used_fallback = analyze_draft(
                     industry,
                     raw_description.strip(),
@@ -503,17 +713,6 @@ def render_create_task() -> None:
                     del st.session_state[key]
             st.rerun()
 
-    analysis = st.session_state.analysis
-    if analysis:
-        if st.session_state.last_ai_fallback:
-            render_ai_warning()
-        render_analysis(analysis)
-        render_clarifying_form(industry, raw_description, analysis)
-
-    if st.session_state.current_card:
-        st.divider()
-        render_editable_card()
-
 
 def render_clarifying_form(
     industry: str,
@@ -526,6 +725,9 @@ def render_clarifying_form(
         return
 
     st.subheader("Уточним несколько вещей")
+    st.caption(
+        "Ваши ответы помогут студентам понять задачу и повысят её готовность."
+    )
     values: dict[str, str] = {}
     with st.form("clarifying_form"):
         for index, question in enumerate(questions):
@@ -533,7 +735,7 @@ def render_clarifying_form(
             st.markdown(f"**{index + 1}. {question.get('question', 'Уточните деталь')}**")
             reason = str(question.get("reason") or "Ответ сделает задачу понятнее.")
             points = int(question.get("score_value") or 0)
-            st.caption(f"{reason} · до +{points} баллов")
+            st.caption(f"{reason} · +{points} к готовности")
             values[question_id] = st.text_area(
                 "Ответ",
                 value=str(st.session_state.clarifying_answers.get(question_id, "")),
@@ -542,7 +744,7 @@ def render_clarifying_form(
                 height=85,
             )
         submitted = st.form_submit_button(
-            "Сформировать карточку",
+            "Подготовить карточку задачи",
             type="primary",
             use_container_width=True,
         )
@@ -573,9 +775,14 @@ def render_clarifying_form(
 def render_score(task: dict[str, Any], confirmed: bool) -> None:
     score = calculate_score(task)
     level = get_level(score)
-    label = "Рейтинг готовности" if confirmed else "Предварительный рейтинг"
-    st.markdown(f'<div class="bridge-score">{label}: {score}/100 · {status_level(score)}</div>', unsafe_allow_html=True)
+    st.markdown("### Готовность задачи")
+    st.markdown(
+        f'<div class="bridge-score">{score} / 100 · {status_level(score)}</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(LEVEL_DESCRIPTIONS[level])
     st.progress(score / 100)
+    render_readiness_explanation()
 
     complete = [label for field, label in SCORE_FIELD_LABELS.items() if is_field_complete(task.get(field))]
     st.caption(f"Заполнено: {len(complete)} из {len(WEIGHTS)} важных разделов")
@@ -600,7 +807,10 @@ def render_editable_card() -> None:
         render_ai_warning()
 
     st.subheader("Карточка задачи")
-    st.caption("Все поля можно проверить и отредактировать вручную.")
+    st.caption(
+        "AI собрал ваши ответы в понятное описание задачи. Все поля можно "
+        "проверить и отредактировать вручную."
+    )
 
     widget_values: dict[str, str] = {}
     for field, label in CARD_FIELDS.items():
@@ -615,6 +825,7 @@ def render_editable_card() -> None:
                 key=widget_key,
                 height=105,
                 disabled=published,
+                help=CARD_FIELD_HELP.get(field),
             )
 
     if "card_tags" not in st.session_state:
@@ -640,9 +851,9 @@ def render_editable_card() -> None:
     render_score(card, bool(card.get("confirmed")))
 
     if published:
-        st.success("Задача опубликована и появилась в каталоге.")
+        st.success("Задача показана студентам и появилась в разделе «Все задачи».")
         left, right = st.columns(2)
-        if left.button("Открыть в каталоге", type="primary", use_container_width=True):
+        if left.button("Открыть задачу", type="primary", use_container_width=True):
             go_to("Детали задачи", task_id=str(card.get("id")))
         right.button(
             "Создать ещё одну задачу",
@@ -652,9 +863,9 @@ def render_editable_card() -> None:
         return
 
     if not card.get("confirmed"):
-        st.caption("🟡 Черновик")
+        st.warning("Не подтверждена — проверьте информацию перед публикацией.")
         if st.button(
-            "✓ Всё верно — подтвердить карточку",
+            "✓ Всё верно",
             type="primary",
             use_container_width=True,
             key="confirm_card",
@@ -666,14 +877,18 @@ def render_editable_card() -> None:
                 st.session_state.current_card = card
                 st.rerun()
     else:
-        st.success("🟢 Подтверждено бизнесом")
+        st.success("Подтверждена — вы проверили содержание задачи.")
         if st.button(
-            "🚀 Опубликовать для студентов",
+            "Показать задачу студентам",
             type="primary",
             use_container_width=True,
             key="publish_card",
         ):
             publish_current_card(card)
+        st.caption(
+            "После публикации задача появится в разделе «Все задачи», и "
+            "студенческие команды смогут отправить вам предложения."
+        )
 
 
 def publish_current_card(card: dict[str, Any]) -> None:
@@ -703,9 +918,20 @@ def publish_current_card(card: dict[str, Any]) -> None:
 
 
 def render_catalog(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]]) -> None:
-    render_page_intro(
-        "Реальные задачи от компаний",
-        "Найдите тему, которая подходит вашей команде.",
+    if st.session_state.role == STUDENT:
+        render_page_intro(
+            "Найдите задачу для своей команды",
+            "Здесь компании публикуют реальные проблемы, над которыми могут "
+            "работать студенческие команды.",
+        )
+    else:
+        render_page_intro(
+            "Все задачи",
+            "Здесь собраны задачи, которые компании показали студентам.",
+        )
+    st.info(
+        "Чем выше готовность задачи, тем больше информации компания уже "
+        "предоставила для начала работы."
     )
     published = [task for task in tasks if task.get("published")]
     search = st.text_input("Поиск по названию", placeholder="Например, контроль качества")
@@ -713,10 +939,19 @@ def render_catalog(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]])
     industries = ["Все"] + sorted({str(task.get("industry", "Other")) for task in published})
     industry = filter_columns[0].selectbox("Отрасль", industries)
     level = filter_columns[1].selectbox(
-        "Уровень готовности",
-        ["Все", "Черновик", "Рабочая", "Готовая", "Приоритетная"],
+        "Готовность задачи",
+        [
+            "Все",
+            "Нужно уточнить",
+            "Можно брать в работу",
+            "Хорошо подготовлена",
+            "Полностью готова",
+        ],
+        help="Показывает, хватает ли студентам информации для начала работы.",
     )
-    sort_order = filter_columns[2].selectbox("Сортировка", ["По рейтингу", "Сначала новые"])
+    sort_order = filter_columns[2].selectbox(
+        "Сортировка", ["По готовности", "Сначала новые"]
+    )
 
     result = published
     if search.strip():
@@ -730,7 +965,7 @@ def render_catalog(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]])
             for task in result
             if get_level(int(task.get("score", calculate_score(task)))) == level
         ]
-    if sort_order == "По рейтингу":
+    if sort_order == "По готовности":
         result.sort(key=lambda item: int(item.get("score", calculate_score(item))), reverse=True)
     else:
         result.sort(key=lambda item: str(item.get("published_at", "")), reverse=True)
@@ -738,7 +973,7 @@ def render_catalog(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]])
     st.caption(f"Найдено задач: {len(result)}")
     counts = proposal_counts(proposals)
     if not result:
-        st.info("По выбранным фильтрам задач нет.")
+        st.info("По выбранным фильтрам задач пока нет. Попробуйте изменить условия поиска.")
     for task in result:
         render_task_card(task, counts.get(str(task.get("id")), 0), "catalog")
 
@@ -747,30 +982,36 @@ def render_task_detail(tasks: list[dict[str, Any]], proposals: list[dict[str, An
     task = task_by_id(tasks, st.session_state.selected_task_id)
     if not task or not task.get("published"):
         st.error("Задача не найдена или ещё не опубликована.")
-        if st.button("Вернуться в каталог"):
+        if st.button("Вернуться ко всем задачам"):
             go_to("Найти задачи" if st.session_state.role == STUDENT else "Каталог")
         return
 
     score = int(task.get("score", calculate_score(task)))
-    st.caption(f"{task.get('industry', 'Other')} · {status_level(score)}")
+    st.caption(str(task.get("industry", "Other")))
     st.title(str(task.get("title") or "Задача"))
+
+    st.markdown("### Что требуется от команды")
+    st.write(task.get("expected_result") or "В задаче это не указано.")
+
+    st.markdown("### Готовность задачи")
     metric_columns = st.columns(3)
-    metric_columns[0].metric("Готовность", f"{score}/100")
+    metric_columns[0].metric("Готовность задачи", f"{score}/100")
     metric_columns[1].metric("Уровень", get_level(score))
     metric_columns[2].metric(
-        "Отклики",
+        "Предложения команд",
         sum(1 for proposal in proposals if str(proposal.get("task_id")) == str(task.get("id"))),
     )
     st.progress(score / 100)
+    st.caption(LEVEL_DESCRIPTIONS[get_level(score)])
+    render_readiness_explanation()
 
     detail_fields = [
-        ("Контекст и потребность", "context_and_need"),
-        ("Для кого", "users"),
-        ("Доступные данные", "data_and_materials"),
-        ("Что нужно получить", "expected_result"),
-        ("Критерии успеха", "success_criteria"),
+        ("Почему появилась эта задача", "context_and_need"),
+        ("Кто будет использовать результат", "users"),
+        ("Что вам предоставят", "data_and_materials"),
+        ("Как поймут, что решение подходит", "success_criteria"),
         ("Ограничения", "constraints"),
-        ("Формат взаимодействия", "business_contact"),
+        ("Как связаться с представителем бизнеса", "business_contact"),
     ]
     for label, field in detail_fields:
         st.markdown(f"#### {label}")
@@ -786,19 +1027,25 @@ def render_task_detail(tasks: list[dict[str, Any]], proposals: list[dict[str, An
 def render_student_ai(task: dict[str, Any]) -> None:
     st.divider()
     with st.container(border=True):
-        st.subheader("Не знакомы с этой отраслью?")
-        st.write("Bridge объяснит контекст под ваш профиль, не меняя факты исходной задачи.")
+        st.subheader("Не разбираетесь в теме? Это нормально.")
+        st.write(
+            "Bridge может объяснить задачу с учётом вашего опыта — без "
+            "изменения исходных требований компании."
+        )
         col_profile, col_depth = st.columns(2)
         profile = col_profile.selectbox(
-            "Ваш профиль",
+            "Кто вы?",
             PROFILES,
             index=PROFILES.index(st.session_state.selected_profile)
             if st.session_state.selected_profile in PROFILES
             else 0,
             key=f"profile_{task.get('id')}",
         )
+        col_profile.caption(
+            "Это нужно только для того, чтобы объяснение было ближе к вашему опыту."
+        )
         depth = col_depth.selectbox(
-            "Глубина объяснения",
+            "Насколько подробно объяснить?",
             DEPTHS,
             index=DEPTHS.index(st.session_state.selected_explanation_depth)
             if st.session_state.selected_explanation_depth in DEPTHS
@@ -808,7 +1055,7 @@ def render_student_ai(task: dict[str, Any]) -> None:
         st.session_state.selected_profile = profile
         st.session_state.selected_explanation_depth = depth
         if st.button(
-            "✨ Объяснить мне задачу",
+            "✨ Объяснить простыми словами",
             type="primary",
             use_container_width=True,
             key=f"explain_{task.get('id')}",
@@ -817,7 +1064,7 @@ def render_student_ai(task: dict[str, Any]) -> None:
                 explanation, used_fallback = explain_task(
                     task,
                     profile,
-                    depth,
+                    DEPTH_API_VALUES[depth],
                     api_key=get_api_key(st.session_state.openai_api_key),
                 )
             st.session_state.student_explanation = explanation
@@ -885,15 +1132,31 @@ def render_proposal_form(task: dict[str, Any]) -> None:
             st.rerun()
         return
 
-    st.subheader("Предложить решение")
+    st.subheader("Расскажите компании, как ваша команда решит задачу")
     with st.form(f"proposal_form_{task.get('id')}"):
         team_name = st.text_input("Название команды *")
-        idea = st.text_area("Идея решения *", height=120)
-        plan = st.text_area("Короткий план *", height=120)
-        deadline = st.text_input("Предполагаемый срок *", placeholder="Например, 3 недели")
-        prototype_url = st.text_input("Ссылка на прототип", placeholder="https://...")
+        idea = st.text_area(
+            "Ваша идея *",
+            height=120,
+            help="Коротко опишите основной подход.",
+        )
+        plan = st.text_area(
+            "План работы *",
+            height=120,
+            help="Какие основные шаги вы предлагаете?",
+        )
+        deadline = st.text_input(
+            "Срок *",
+            placeholder="Например, 3 недели",
+            help="За какое время вы предполагаете подготовить результат?",
+        )
+        prototype_url = st.text_input(
+            "Ссылка на прототип",
+            placeholder="https://...",
+            help="Необязательно.",
+        )
         submitted = st.form_submit_button(
-            "Отправить предложение",
+            "Отправить предложение компании",
             type="primary",
             use_container_width=True,
         )
@@ -919,7 +1182,9 @@ def render_proposal_form(task: dict[str, Any]) -> None:
                 }
             )
             save_proposals(proposals)
-            st.success("Предложение отправлено бизнесу.")
+            st.success(
+                "Предложение отправлено. Компания сможет его изучить и принять решение."
+            )
 
 
 def render_student_proposals(
@@ -930,11 +1195,17 @@ def render_student_proposals(
 ) -> None:
     if not compact:
         render_page_intro(
-            "Мои предложения",
-            "В демо-режиме здесь показаны предложения всех команд.",
+            "Мои заявки",
+            "Здесь вы видите идеи решений, которые отправили компаниям.",
         )
     if not proposals:
-        st.info("Вы ещё не отправляли предложений.")
+        st.info("Вы пока не отправляли предложения.")
+        if st.button(
+            "Найти задачу",
+            type="primary",
+            key=f"empty_find_task_{'compact' if compact else 'full'}",
+        ):
+            go_to("Найти задачи")
         return
     limit = 3 if compact else len(proposals)
     for proposal in sorted(proposals, key=lambda item: str(item.get("created_at", "")), reverse=True)[:limit]:
@@ -952,9 +1223,13 @@ def render_student_proposals(
 
 def render_business_proposals(tasks: list[dict[str, Any]], proposals: list[dict[str, Any]]) -> None:
     render_page_intro(
-        "Отклики команд",
-        "Решение всегда принимает представитель бизнеса вручную.",
+        "Предложения команд",
+        "Здесь студенты предлагают способы решения ваших опубликованных задач.",
     )
+    notice = st.session_state.get("proposal_status_notice")
+    if notice:
+        st.success(notice)
+        st.session_state.proposal_status_notice = None
     labels = {
         "Все": None,
         "На рассмотрении": "pending",
@@ -970,7 +1245,10 @@ def render_business_proposals(tasks: list[dict[str, Any]], proposals: list[dict[
         filtered.sort(key=lambda item: str(item.get("id")) == str(selected_id), reverse=True)
 
     if not filtered:
-        st.info("В этой категории откликов пока нет.")
+        st.info(
+            "Пока никто не предложил решение. Когда студенческая команда "
+            "отправит идею, её предложение появится здесь."
+        )
         return
     for proposal in filtered:
         task = task_by_id(tasks, str(proposal.get("task_id")))
@@ -994,14 +1272,14 @@ def render_business_proposals(tasks: list[dict[str, Any]], proposals: list[dict[
             if proposal.get("status") == "pending":
                 accept, reject = st.columns(2)
                 if accept.button(
-                    "✓ Принять",
+                    "Выбрать эту команду",
                     type="primary",
                     use_container_width=True,
                     key=f"accept_{proposal.get('id')}",
                 ):
                     update_proposal_status(str(proposal.get("id")), "accepted")
                 if reject.button(
-                    "Отклонить",
+                    "Отклонить предложение",
                     use_container_width=True,
                     key=f"reject_{proposal.get('id')}",
                 ):
@@ -1017,6 +1295,11 @@ def update_proposal_status(proposal_id: str, status: str) -> None:
             break
     save_proposals(proposals)
     st.session_state.selected_proposal_id = proposal_id
+    st.session_state.proposal_status_notice = (
+        "Команда выбрана для дальнейшей работы."
+        if status == "accepted"
+        else "Предложение отклонено."
+    )
     st.rerun()
 
 
@@ -1036,7 +1319,11 @@ def main() -> None:
     role = st.session_state.role
     page = st.session_state.page
 
-    if page == "Детали задачи":
+    if page == "Как это работает":
+        render_how_bridge_works()
+    elif not st.session_state.onboarding_seen:
+        render_how_bridge_works(welcome=True)
+    elif page == "Детали задачи":
         render_task_detail(tasks, proposals)
     elif role == BUSINESS:
         if page == "Создать задачу":

@@ -74,12 +74,12 @@ def get_level(score: Any) -> str:
 
     numeric_score = _normalise_score(score)
     if numeric_score < 40:
-        return "Черновик"
+        return "Нужно уточнить"
     if numeric_score < 70:
-        return "Рабочая"
+        return "Можно брать в работу"
     if numeric_score < 90:
-        return "Готовая"
-    return "Приоритетная"
+        return "Хорошо подготовлена"
+    return "Полностью готова"
 
 
 def get_missing_recommendations(
@@ -121,18 +121,18 @@ def _points_word(points: int) -> str:
 def points_to_next_level(score: Any) -> dict[str, Any]:
     """Describe how many points remain to the next showcased level.
 
-    The product specifically highlights the thresholds ``Готовая`` (70) and
-    ``Приоритетная`` (90).  For an already-priority task, ``points`` is zero
+    The product specifically highlights the thresholds ``Хорошо подготовлена``
+    (70) and ``Полностью готова`` (90).  For an already-complete task, ``points`` is zero
     and ``target_level`` is ``None``.
     """
 
     numeric_score = _normalise_score(score)
     if numeric_score < 70:
         threshold = 70
-        target_level: str | None = "Готовая"
+        target_level: str | None = "Хорошо подготовлена"
     elif numeric_score < 90:
         threshold = 90
-        target_level = "Приоритетная"
+        target_level = "Полностью готова"
     else:
         return {
             "points": 0,
