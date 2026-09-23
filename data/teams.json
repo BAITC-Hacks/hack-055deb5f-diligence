@@ -1,0 +1,67 @@
+[
+  {
+    "id": "team-vision-lab",
+    "name": "Vision Lab",
+    "profile": "AI / Data",
+    "description": "Студенческая команда по анализу изображений и прототипированию ML-решений.",
+    "skills": [
+      "Python",
+      "Computer Vision",
+      "Data Analysis"
+    ],
+    "members_count": 4,
+    "created_at": "2026-09-10T12:00:00+05:00"
+  },
+  {
+    "id": "team-route-crafters",
+    "name": "Route Crafters",
+    "profile": "Engineering",
+    "description": "Команда, которая создаёт прикладные прототипы для логистических сценариев.",
+    "skills": [
+      "Algorithms",
+      "Python",
+      "Maps"
+    ],
+    "members_count": 3,
+    "created_at": "2026-09-11T13:00:00+05:00"
+  },
+  {
+    "id": "team-signal",
+    "name": "Signal",
+    "profile": "AI / Data",
+    "description": "Команда по обработке текстов, аналитике и визуализации результатов.",
+    "skills": [
+      "NLP",
+      "Analytics",
+      "Data Visualization"
+    ],
+    "members_count": 5,
+    "created_at": "2026-09-12T10:30:00+05:00"
+  },
+  {
+    "id": "team-campus-flow",
+    "name": "Campus Flow",
+    "profile": "Design / Product",
+    "description": "Продуктовая команда, исследующая понятные цифровые сервисы для студентов.",
+    "skills": [
+      "UX Research",
+      "Prototyping",
+      "Product Design"
+    ],
+    "members_count": 4,
+    "created_at": "2026-09-13T15:00:00+05:00"
+  },
+  {
+    "id": "team-market-pulse",
+    "name": "Market Pulse",
+    "profile": "Business",
+    "description": "Междисциплинарная команда по бизнес-анализу и моделированию спроса.",
+    "skills": [
+      "Business Analysis",
+      "Forecasting",
+      "Python"
+    ],
+    "members_count": 3,
+    "created_at": "2026-09-14T11:15:00+05:00"
+  }
+]
