@@ -238,13 +238,13 @@ def fallback_task_card(
 
 
 def _task_text(task: Mapping[str, Any], field: str) -> str:
-    return _clean_text(task.get(field)) or "В задаче это не указано"
+    return _clean_text(task.get(field)) or "В описании задачи это не указано."
 
 
 def fallback_student_explanation(
     task: Mapping[str, Any] | None = None,
     profile: str = "Новичок",
-    depth: str = "Понятно",
+    depth: str = "С примерами",
 ) -> dict[str, Any]:
     """Explain a published card offline without changing its facts."""
 
@@ -252,44 +252,64 @@ def fallback_student_explanation(
         task if isinstance(task, Mapping) else fallback_task_card()
     )
     selected_profile = profile.strip() or "Новичок"
-    selected_depth = depth.strip() or "Понятно"
+    depth_aliases = {
+        "За 30 секунд": "Коротко",
+        "Понятно": "С примерами",
+        "Понятно и подробно": "С примерами",
+        "Технически": "Технически подробно",
+    }
+    selected_depth = depth_aliases.get(depth.strip(), depth.strip()) or "С примерами"
+    if selected_depth not in {"Коротко", "С примерами", "Технически подробно"}:
+        selected_depth = "С примерами"
 
     role_guidance = {
         "Новичок": (
-            "Начните с контекста и ожидаемого результата, затем сверяйте идеи "
-            "с доступными материалами и ограничениями."
+            "Ваша роль — сначала разобраться в проблеме и ожидаемом результате, "
+            "не предполагая специальных знаний."
         ),
         "AI / Data": (
-            "Сфокусируйтесь на доступных данных, ожидаемом результате и способе "
-            "проверки результата."
+            "Ваша роль — изучить указанные данные, ожидаемый результат и критерии "
+            "проверки, не предполагая отсутствующие модели или метрики."
         ),
         "Business": (
-            "Сфокусируйтесь на потребности, пользователях и критериях успеха."
+            "Ваша роль — связать проблему бизнеса, пользователей, ожидаемый "
+            "результат и критерии успеха."
         ),
         "Engineering": (
-            "Сфокусируйтесь на ожидаемом результате, ограничениях и доступных "
-            "материалах."
+            "Ваша роль — разобраться в доступных материалах, ожидаемом результате, "
+            "ограничениях и связях между ними."
         ),
         "Design / Product": (
-            "Сфокусируйтесь на пользователях, их контексте и форме итогового "
-            "результата."
+            "Ваша роль — понять пользователей, их контекст и ожидаемый опыт, "
+            "опираясь только на карточку."
         ),
     }.get(
         selected_profile,
         "Сопоставьте ожидаемый результат с данными, ограничениями и критериями успеха.",
     )
 
-    if selected_depth == "Коротко":
-        role_guidance = role_guidance.split(".", 1)[0] + "."
-    elif selected_depth == "Технически":
-        role_guidance += " Не считайте отсутствующие в карточке детали требованиями."
+    raw_data = _clean_text(safe_task.get("data_and_materials"))
+    raw_result = _clean_text(safe_task.get("expected_result"))
+    raw_criteria = _clean_text(safe_task.get("success_criteria"))
 
-    return {
-        "core_problem": _task_text(safe_task, "context_and_need"),
-        "why_it_matters": _task_text(safe_task, "context_and_need"),
-        "what_team_should_do": _task_text(safe_task, "expected_result"),
-        "your_role": role_guidance,
-        "key_terms": [
+    example = ""
+    if selected_depth == "С примерами":
+        example = (
+            "Пример связи фактов карточки: команда получает материалы — "
+            f"{raw_data or 'В описании задачи это не указано.'} "
+            "Ожидаемый результат — "
+            f"{raw_result or 'В описании задачи это не указано.'}"
+        )
+    elif selected_depth == "Технически подробно" and raw_data and raw_result:
+        example = (
+            f"Связь требований: входные материалы — {raw_data}; ожидаемый "
+            f"результат — {raw_result}; критерии — "
+            f"{raw_criteria or 'В описании задачи это не указано.'}"
+        )
+
+    key_terms: list[dict[str, str]] = []
+    if selected_depth != "Коротко":
+        key_terms = [
             {
                 "term": "Данные и материалы",
                 "explanation": _task_text(safe_task, "data_and_materials"),
@@ -306,10 +326,18 @@ def fallback_student_explanation(
                 "term": "Ограничения",
                 "explanation": _task_text(safe_task, "constraints"),
             },
-        ],
+        ]
+
+    return {
+        "core_problem": _task_text(safe_task, "context_and_need"),
+        "why_it_matters": _task_text(safe_task, "context_and_need"),
+        "what_team_should_do": _task_text(safe_task, "expected_result"),
+        "your_role": role_guidance,
+        "key_terms": key_terms,
+        "example": example,
         "first_steps": [
-            f"Изучите контекст: {_task_text(safe_task, 'context_and_need')}",
-            f"Проверьте доступные материалы: {_task_text(safe_task, 'data_and_materials')}",
-            f"Сверьте результат с критериями: {_task_text(safe_task, 'success_criteria')}",
+            "Перечитайте описание проблемы и выпишите только указанные в нём факты.",
+            "Сопоставьте доступные материалы с ожидаемым результатом и отметьте пробелы.",
+            "Уточните непонятные термины, ограничения и критерии у представителя бизнеса.",
         ],
     }

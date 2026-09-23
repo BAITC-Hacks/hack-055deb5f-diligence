@@ -60,6 +60,15 @@ class StreamlitSmokeTests(unittest.TestCase):
         self.assertTrue(
             any("Не разбираетесь в теме" in item.value for item in app.subheader)
         )
+        depth = next(
+            selectbox
+            for selectbox in app.selectbox
+            if selectbox.label == "Как объяснить задачу?"
+        )
+        self.assertEqual(
+            depth.options,
+            ["Коротко", "С примерами", "Технически подробно"],
+        )
 
     def test_help_page_is_available_from_sidebar(self) -> None:
         app = AppTest.from_file(str(PROJECT_ROOT / "app.py")).run(timeout=30)

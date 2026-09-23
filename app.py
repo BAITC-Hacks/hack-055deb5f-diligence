@@ -54,11 +54,11 @@ INDUSTRIES = [
     "Other",
 ]
 PROFILES = ["Новичок", "AI / Data", "Business", "Engineering", "Design / Product"]
-DEPTHS = ["За 30 секунд", "Понятно и подробно", "Технически"]
-DEPTH_API_VALUES = {
-    "За 30 секунд": "Коротко",
-    "Понятно и подробно": "Понятно",
-    "Технически": "Технически",
+DEPTHS = ["Коротко", "С примерами", "Технически подробно"]
+DEPTH_HELP = {
+    "Коротко": "Только главная суть за 30 секунд.",
+    "С примерами": "Простыми словами, с примерами и аналогиями.",
+    "Технически подробно": "С профессиональными терминами, логикой и деталями.",
 }
 
 CARD_FIELDS = {
@@ -151,7 +151,7 @@ def init_state() -> None:
         "selected_task_id": None,
         "selected_proposal_id": None,
         "selected_profile": "AI / Data",
-        "selected_explanation_depth": "Понятно и подробно",
+        "selected_explanation_depth": "С примерами",
         "openai_api_key": None,
         "student_explanation": None,
         "student_explanation_context": None,
@@ -1045,13 +1045,14 @@ def render_student_ai(task: dict[str, Any]) -> None:
             "Это нужно только для того, чтобы объяснение было ближе к вашему опыту."
         )
         depth = col_depth.selectbox(
-            "Насколько подробно объяснить?",
+            "Как объяснить задачу?",
             DEPTHS,
             index=DEPTHS.index(st.session_state.selected_explanation_depth)
             if st.session_state.selected_explanation_depth in DEPTHS
             else 1,
             key=f"depth_{task.get('id')}",
         )
+        col_depth.caption(DEPTH_HELP[depth])
         st.session_state.selected_profile = profile
         st.session_state.selected_explanation_depth = depth
         if st.button(
@@ -1064,7 +1065,7 @@ def render_student_ai(task: dict[str, Any]) -> None:
                 explanation, used_fallback = explain_task(
                     task,
                     profile,
-                    DEPTH_API_VALUES[depth],
+                    depth,
                     api_key=get_api_key(st.session_state.openai_api_key),
                 )
             st.session_state.student_explanation = explanation
@@ -1093,6 +1094,10 @@ def render_student_ai(task: dict[str, Any]) -> None:
         for label, field in explanation_fields:
             st.markdown(f"**{label}**")
             st.write(explanation.get(field) or "В задаче это не указано.")
+        example = str(explanation.get("example") or "").strip()
+        if example:
+            st.markdown("**Пример**")
+            st.write(example)
         terms = explanation.get("key_terms") or []
         if terms:
             with st.expander("Ключевые термины"):
